@@ -8,12 +8,14 @@ use winit::{
 
 use crate::{input::InputManager, rendering::Renderer, timing::Timing};
 
+#[derive(Debug)]
 pub struct ApplicationDescriptor {
     pub window_width: u32,
     pub window_height: u32,
     pub fullscreen: bool,
     pub resizeable: bool,
     pub title: String,
+    pub with_logging: bool,
 }
 
 impl Default for ApplicationDescriptor {
@@ -24,6 +26,7 @@ impl Default for ApplicationDescriptor {
             fullscreen: false,
             resizeable: false,
             title: "Application".to_string(),
+            with_logging: true,
         }
     }
 }
@@ -88,47 +91,43 @@ impl From<ApplicationDescriptor> for Globals {
 }
 
 pub trait Application {
-    type Renderer;
-
     fn descriptor(&self) -> ApplicationDescriptor {
         ApplicationDescriptor::default()
     }
 
-    fn renderer(&self) -> Self::Renderer
-    where
-        Self::Renderer: Renderer;
-
     fn update(&mut self, globals: &mut Globals, input_manager: &InputManager, timing: &Timing);
 
-    fn render(&self, renderer: &Self::Renderer)
-    where
-        Self::Renderer: Renderer;
+    fn render(&self, renderer: &Renderer);
 }
 
-pub fn run<A: Application + 'static>(mut app: A) -> anyhow::Result<()>
-where
-    <A as Application>::Renderer: Renderer,
-{
+pub fn run<A: Application + 'static>(mut app: A) -> anyhow::Result<()> {
+    let descriptor = app.descriptor();
+    if descriptor.with_logging {
+        let filter = tracing_subscriber::filter::EnvFilter::new("application_base=info,wgpu=warn");
+        tracing_subscriber::fmt::fmt()
+            .with_env_filter(filter)
+            .init();
+    }
+
     let event_loop = event_loop::EventLoop::new();
     let monitor = event_loop
         .primary_monitor()
         .ok_or(anyhow::anyhow!("no primary monitor"))?;
     let mut window_builder = window::WindowBuilder::default()
-        .with_title(app.descriptor().title)
-        .with_resizable(app.descriptor().resizeable)
+        .with_title(descriptor.title)
+        .with_resizable(descriptor.resizeable)
         .with_inner_size(dpi::PhysicalSize::new(
-            app.descriptor().window_width,
-            app.descriptor().window_height,
+            descriptor.window_width,
+            descriptor.window_height,
         ));
-    if app.descriptor().fullscreen {
+    if descriptor.fullscreen {
         window_builder = window_builder
             .with_fullscreen(Some(window::Fullscreen::Borderless(Some(monitor.clone()))));
     }
     let window = window_builder.build(&event_loop)?;
     let window = Rc::new(window);
 
-    let mut renderer = app.renderer();
-    renderer.set_target(window.clone());
+    let mut renderer = Renderer::new(window.clone());
 
     let mut globals: Globals = app.descriptor().into();
     let mut last_globals = globals.clone();

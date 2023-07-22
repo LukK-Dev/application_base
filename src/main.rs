@@ -1,5 +1,5 @@
 use application::{run, Application};
-use rendering::renderer::Renderer3D;
+use rendering::Renderer;
 
 pub mod application;
 pub mod input;
@@ -19,19 +19,6 @@ fn main() {
 struct App {}
 
 impl Application for App {
-    type Renderer = Renderer3D;
-
-    fn descriptor(&self) -> application::ApplicationDescriptor {
-        application::ApplicationDescriptor {
-            resizeable: true,
-            ..Default::default()
-        }
-    }
-
-    fn renderer(&self) -> Self::Renderer {
-        Self::Renderer::new()
-    }
-
     fn update(
         &mut self,
         globals: &mut application::Globals,
@@ -43,5 +30,5 @@ impl Application for App {
         }
     }
 
-    fn render(&self, renderer: &Self::Renderer) {}
+    fn render(&self, renderer: &Renderer) {}
 }
